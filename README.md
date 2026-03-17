@@ -74,13 +74,28 @@ vncserver -kill :1
 
 ## Usage
 
+### Step 0 — Generate motion from a text prompt (optional, hymotion conda env)
+
+If you need to generate new motion from a text prompt (instead of using existing NPZ files):
+
+```bash
+conda activate hymotion
+cd ~/code/HY-Motion
+
+HY_MOTION_LLM_4BIT=1 python generate_motion.py \
+    --prompt "A person walks forward" \
+    --output-dir output/generated/
+```
+
+This produces a `.npz` file + skeleton `.mp4` video. See the [HY-Motion README_DEPLOY.md](../HY-Motion/README_DEPLOY.md) for details.
+
 ### Step 1 — Convert HY-Motion NPZ to .motion format (no simulator needed)
 
 Single file:
 
 ```bash
 python scripts/convert_npz.py \
-    --npz-file ~/code/HY-Motion/output/local_infer/test_prompts_subset/00000001_000.npz \
+    --npz-file ~/code/HY-Motion/output/generated/a_person_walks_forward_000.npz \
     --output-dir output/
 ```
 
@@ -117,10 +132,10 @@ python scripts/run_tracking.py \
 Text prompt
     │
     ▼
-HY-Motion (separate process)
-    │  SMPL-H NPZ (angle-axis poses + trans, 30fps)
+HY-Motion generate_motion.py (hymotion conda env)
+    │  SMPL-H NPZ (angle-axis poses + trans, 30fps) + skeleton MP4
     ▼
-convert_npz.py
+convert_npz.py (env_isaaclab)
     │  1. Extract 22 body joints + 2 zero hands -> 24 joints
     │  2. Angle-axis -> quaternions -> local rotation matrices
     │  3. ProtoMotions FK (global rotations from MJCF skeleton)
