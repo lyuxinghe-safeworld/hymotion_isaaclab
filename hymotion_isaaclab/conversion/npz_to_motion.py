@@ -133,50 +133,21 @@ def convert_hymotion_npz(
         velocity_max_horizon=3,
     )
 
-    # --- Step 5b: Rotate FK output from Y-up to Z-up ---
-    # The canonical pipeline produces Y-up positions (root_pos is never rotated).
-    # Isaac Lab expects Z-up. Apply Rx(π/2): Y→Z, Z→-Y, X→X.
-    y_up_to_z_up = sRot.from_euler("x", np.pi / 2)
-    y2z_mat = torch.from_numpy(y_up_to_z_up.as_matrix()).to(device, dtype)
-    y2z_quat = torch.from_numpy(y_up_to_z_up.as_quat()).to(device, dtype)
-
-    # Rotate positions and velocities
-    motion.rigid_body_pos = torch.einsum("ij,...j->...i", y2z_mat, motion.rigid_body_pos)
-    if motion.rigid_body_vel is not None:
-        motion.rigid_body_vel = torch.einsum("ij,...j->...i", y2z_mat, motion.rigid_body_vel)
-    if motion.rigid_body_ang_vel is not None:
-        motion.rigid_body_ang_vel = torch.einsum("ij,...j->...i", y2z_mat, motion.rigid_body_ang_vel)
-
-    # Left-multiply global quaternions by the Y-up to Z-up rotation
-    y2z_quat_expanded = y2z_quat.expand(T, -1)
-    for i in range(_N_TOTAL_JOINTS):
-        motion.rigid_body_rot[:, i, :] = quat_mul(
-            y2z_quat_expanded, motion.rigid_body_rot[:, i, :], w_last=True
-        )
-
-    # Recompute local rotations from the Z-up global rotations
-    local_rot_mats_zup = compute_joint_rot_mats_from_global_mats(
-        kinematic_info=kinematic_info,
-        global_rot_mats=quaternion_to_matrix(motion.rigid_body_rot, w_last=True),
-    )
-
     # Cache local rotations for MotionLib interpolation
-    pose_quat_zup = matrix_to_quaternion(local_rot_mats_zup, w_last=True)
-    motion.local_rigid_body_rot = pose_quat_zup.clone()
+    pose_quat_rotated = matrix_to_quaternion(local_rot_mats_rotated, w_last=True)
+    motion.local_rigid_body_rot = pose_quat_rotated.clone()
 
     # --- Step 6: Extract DOF positions and velocities ---
-    # Use Z-up root position and local rotations for DOF extraction
-    amass_trans_zup = torch.einsum("ij,...j->...i", y2z_mat, amass_trans)
     qpos = extract_qpos_from_transforms(
         kinematic_info=kinematic_info,
-        root_pos=amass_trans_zup,
-        joint_rot_mats=local_rot_mats_zup,
+        root_pos=amass_trans,
+        joint_rot_mats=local_rot_mats_rotated,
         multi_dof_decomposition_method="exp_map",
     )
     motion.dof_pos = qpos[:, 7:]  # skip root 7-DOF (3 pos + 4 quat)
 
     local_angular_vels = compute_angular_velocity(
-        batched_robot_rot_mats=local_rot_mats_zup[:, 1:, :, :],
+        batched_robot_rot_mats=local_rot_mats_rotated[:, 1:, :, :],
         fps=output_fps,
     )
     assert local_angular_vels.shape[1] == _N_NON_ROOT_JOINTS
