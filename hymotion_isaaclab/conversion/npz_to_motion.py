@@ -105,7 +105,9 @@ def convert_hymotion_npz(
     )
     global_quat = matrix_to_quaternion(world_rot_mat, w_last=True)
 
-    # --- Step 4: Apply canonical ProtoMotions coordinate rotation ---
+    # --- Step 4: Apply coordinate rotation (body-frame + world-frame) ---
+    # rot1 (right-multiply): transforms body-local rotations from Y-up character
+    # to Z-up character representation (same as canonical ProtoMotions pipeline).
     rot1 = sRot.from_euler(
         "xyz", np.array([-np.pi / 2, -np.pi / 2, 0]), degrees=False
     )
@@ -113,10 +115,25 @@ def convert_hymotion_npz(
         torch.from_numpy(rot1.as_quat()).to(device, dtype).expand(T, -1)
     )
 
+    # rot_y2z (left-multiply): rotates the entire motion from Y-up to Z-up
+    # world space, matching the Isaac Lab / MuJoCo Z-up convention.
+    # See convert_rigv1_to_proto.py lines 129-150 for the same pattern.
+    rot_y2z = sRot.from_euler("x", np.pi / 2, degrees=False)
+    rot_y2z_quat = (
+        torch.from_numpy(rot_y2z.as_quat()).to(device, dtype).expand(T, -1)
+    )
+
     for i in range(_N_TOTAL_JOINTS):
         global_quat[:, i, :] = quat_mul(
             global_quat[:, i, :], rot1_quat, w_last=True
         )
+        global_quat[:, i, :] = quat_mul(
+            rot_y2z_quat, global_quat[:, i, :], w_last=True
+        )
+
+    # Rotate root position from Y-up to Z-up
+    rot_y2z_mat = torch.from_numpy(rot_y2z.as_matrix()).to(device, dtype)
+    amass_trans = (rot_y2z_mat @ amass_trans.unsqueeze(-1)).squeeze(-1)
 
     # --- Step 5: Recompute local rotations and run FK with velocities ---
     local_rot_mats_rotated = compute_joint_rot_mats_from_global_mats(
