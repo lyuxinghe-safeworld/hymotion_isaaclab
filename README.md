@@ -74,21 +74,6 @@ vncserver -kill :1
 
 ## Usage
 
-### Step 0 — Generate motion from a text prompt (optional, hymotion conda env)
-
-If you need to generate new motion from a text prompt (instead of using existing NPZ files):
-
-```bash
-conda activate hymotion
-cd ~/code/HY-Motion
-
-HY_MOTION_LLM_4BIT=1 python generate_motion.py \
-    --prompt "A person walks forward" \
-    --output-dir output/generated/
-```
-
-This produces a `.npz` file + skeleton `.mp4` video. See the [HY-Motion README_DEPLOY.md](../HY-Motion/README_DEPLOY.md) for details.
-
 ### Step 1 — Convert HY-Motion NPZ to .motion format (no simulator needed)
 
 Single file:
