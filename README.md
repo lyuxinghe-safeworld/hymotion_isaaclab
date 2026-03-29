@@ -1,6 +1,6 @@
 # HY-Motion IsaacLab
 
-Convert HY-Motion generated motion (NPZ files) to ProtoMotions format and track in Isaac Lab.
+Convert HY-Motion generated motion (NPZ files) to ProtoMotions format and track in Isaac Lab
 
 ---
 
